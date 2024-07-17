@@ -3,9 +3,9 @@ import heapq
 
 import torch
 
-from .. import cdiv
-from ..runtime import driver
-from ..testing import (get_dram_gbps, get_max_simd_tflops, get_max_tensorcore_tflops, nvsmi)
+from triton import cdiv
+from triton.runtime import driver
+from triton.testing import (get_dram_gbps, get_max_simd_tflops, get_max_tensorcore_tflops, nvsmi)
 
 
 @functools.lru_cache()

@@ -1,7 +1,7 @@
 import torch
 
-from ... import cdiv, heuristics, jit
-from ... import language as tl
+from triton import cdiv, heuristics, jit
+from triton import language as tl
 
 # ********************************************************
 # --------------------------------------------------------
