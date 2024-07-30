@@ -9,7 +9,6 @@ from pathlib import Path
 from typing import List, Optional, Tuple, TypedDict
 
 import torch
-import torch.nn.functional as F
 from fairscale.nn.model_parallel.initialize import (
     get_model_parallel_rank,
     initialize_model_parallel,
@@ -17,6 +16,7 @@ from fairscale.nn.model_parallel.initialize import (
 )
 
 from llama.model import ModelArgs, Transformer
+from llama.mathOps import MathOps
 from llama.tokenizer import ChatFormat, Dialog, Message, Tokenizer
 
 
@@ -41,6 +41,7 @@ class Llama:
         max_batch_size: int,
         model_parallel_size: Optional[int] = None,
         seed: int = 1,
+        use_triton: bool = False,
     ) -> "Llama":
         """
         Build a Llama instance by initializing and loading a model checkpoint.
@@ -67,7 +68,7 @@ class Llama:
         assert 1 <= max_seq_len <= 8192, f"max_seq_len must be between 1 and 8192, got {max_seq_len}."
         assert os.path.isdir(ckpt_dir), f"Checkpoint directory '{ckpt_dir}' does not exist."
         assert os.path.isfile(tokenizer_path), f"Tokenizer file '{tokenizer_path}' does not exist."
-        
+
         if not torch.distributed.is_initialized():
             torch.distributed.init_process_group("nccl")
         if not model_parallel_is_initialized():
@@ -106,16 +107,18 @@ class Llama:
             torch.set_default_tensor_type(torch.cuda.BFloat16Tensor)
         else:
             torch.set_default_tensor_type(torch.cuda.HalfTensor)
-        model = Transformer(model_args)
+        model = Transformer(model_args, use_triton=use_triton)
         model.load_state_dict(checkpoint, strict=False)
         print(f"Loaded in {time.time() - start_time:.2f} seconds")
 
-        return Llama(model, tokenizer)
+        return Llama(model, tokenizer, use_triton)
 
-    def __init__(self, model: Transformer, tokenizer: Tokenizer):
+    def __init__(self, model: Transformer, tokenizer: Tokenizer, use_triton: bool = False):
         self.model = model
         self.tokenizer = tokenizer
         self.formatter = ChatFormat(tokenizer)
+        self.use_triton = use_triton
+        self.Math = MathOps(use_triton)
 
     @torch.inference_mode()
     def generate(
@@ -167,22 +170,21 @@ class Llama:
         input_text_mask = tokens != pad_id
         if min_prompt_len == total_len:
             logits = self.model.forward(tokens, prev_pos)
-            token_logprobs = -F.cross_entropy(
-                input=logits.transpose(1, 2),
+            
+            token_logprobs = self.Math.cross_entropy(input=logits.transpose(1, 2),
                 target=tokens,
                 reduction="none",
-                ignore_index=pad_id,
-            )
+                ignore_index=pad_id,)
 
         stop_tokens = torch.tensor(list(self.tokenizer.stop_tokens))
 
         for cur_pos in range(min_prompt_len, total_len):
             logits = self.model.forward(tokens[:, prev_pos:cur_pos], prev_pos)
             if temperature > 0:
-                probs = torch.softmax(logits[:, -1] / temperature, dim=-1)
+                probs = self.Math.softmax(logits[:, -1] / temperature, dim=-1)
                 next_token = sample_top_p(probs, top_p)
             else:
-                next_token = torch.argmax(logits[:, -1], dim=-1)
+                next_token = self.Math.argmax(logits[:, -1], dim=-1)
 
             next_token = next_token.reshape(-1)
             # only replace token if prompt has already been generated
@@ -191,7 +193,7 @@ class Llama:
             )
             tokens[:, cur_pos] = next_token
             if logprobs:
-                token_logprobs[:, prev_pos + 1 : cur_pos + 1] = -F.cross_entropy(
+                token_logprobs[:, prev_pos + 1 : cur_pos + 1] = self.Math.cross_entropy(
                     input=logits.transpose(1, 2),
                     target=tokens[:, prev_pos + 1 : cur_pos + 1],
                     reduction="none",

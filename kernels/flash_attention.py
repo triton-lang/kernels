@@ -11,8 +11,8 @@ Sequence Parallel implementation inspired by HazyResearch
 import torch
 import triton
 
-from .. import cdiv, jit
-from .. import language as tl
+from triton import cdiv, jit
+from triton import language as tl
 
 
 def is_hip():
