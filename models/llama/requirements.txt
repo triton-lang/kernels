@@ -1,0 +1,6 @@
+torch
+huggingface-hub
+fire
+blobfile
+tiktoken
+fairscale

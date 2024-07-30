@@ -1,16 +1,16 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
 # This software may be used and distributed in accordance with the terms of the Llama 3 Community License Agreement.
-
 from typing import List, Optional
 
 import fire
-
+import os
 from llama import Dialog, Llama
 
 
 def main(
     ckpt_dir: str,
     tokenizer_path: str,
+    use_triton: bool = False,
     temperature: float = 0.6,
     top_p: float = 0.9,
     max_seq_len: int = 512,
@@ -33,6 +33,7 @@ def main(
         tokenizer_path=tokenizer_path,
         max_seq_len=max_seq_len,
         max_batch_size=max_batch_size,
+        use_triton=use_triton,
     )
 
     dialogs: List[Dialog] = [
@@ -81,4 +82,8 @@ These are just a few of the many attractions that Paris has to offer. With so mu
 
 
 if __name__ == "__main__":
+    os.environ["RANK"] = "0"
+    os.environ["WORLD_SIZE"] = "1"
+    os.environ['MASTER_ADDR'] = '127.0.0.1'
+    os.environ['MASTER_PORT'] = '29500'
     fire.Fire(main)
