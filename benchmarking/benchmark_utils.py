@@ -6,10 +6,8 @@ def compare_benchmarks(benchmarks: Dict[str, Dict[str, Any]]) -> Dict[str, Any]:
     series_dict = {k: pd.Series(v.values()) for k, v in benchmarks.items()}
     series_dict["kernel_path"] = pd.Series(benchmarks[list(benchmarks.keys())[0]].keys())
     series_dict["kernel"] = pd.Series([k.split(".")[-1] for k in series_dict["kernel_path"]])
-    for p in  series_dict["kernel_path"]:
-        print(p)
-    raise ValueError("test")
     df = pd.DataFrame()
+    
     for k, v in series_dict.items():
         df[k] = v
     columns = [c for c in df.columns if not "kernel" in c]
