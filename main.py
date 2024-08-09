@@ -10,6 +10,12 @@ import pprint
 
 
 def main(operation: str, profile = False, benchmark = False, **kwargs):
+    """
+    all kwargs are passed to the operation you choose.
+
+    The profile and benchmark flags can be set independently of each other
+    *but* if you set both then profiling will be done on both sets
+    """
     p = Profiler(profile, benchmark)
     profiles = {}
     benchmarks = {}
