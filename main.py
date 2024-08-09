@@ -28,9 +28,9 @@ def main(operation: str, profile = False, benchmark = False, **kwargs):
         p = Profiler(profile, benchmark)
 
         kwargs["use_triton"] = True
-        #runner(operation, kwargs)
-        #benchmarks["non_triton"] = Profiler.get_benchmark_vals()
-        #profiles["non_triton"] = Profiler.get_profiling_data()
+        runner(operation, kwargs)
+        benchmarks["non_triton"] = Profiler.get_benchmark_vals()
+        profiles["non_triton"] = Profiler.get_profiling_data()
     elif profile:
         runner(operation, kwargs)
         data = Profiler.key_averages()
