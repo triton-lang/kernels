@@ -4,3 +4,5 @@ fire
 blobfile
 tiktoken
 fairscale
+triton
+pandas

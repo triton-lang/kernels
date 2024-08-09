@@ -1,0 +1,2 @@
+from .example_chat_completion import main as llama_example_chat_completion
+from .example_text_completion import main as llama_example_text_completion

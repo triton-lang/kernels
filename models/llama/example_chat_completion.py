@@ -2,11 +2,11 @@
 # This software may be used and distributed in accordance with the terms of the Llama 3 Community License Agreement.
 from typing import List, Optional
 
-import fire
-import os
-from llama import Dialog, Llama
+from .llama import Dialog, Llama
+from benchmarking import Profiler
 
 
+@Profiler.profiling_decorator(record_name="chat_completion", skip_profiling=True)
 def main(
     ckpt_dir: str,
     tokenizer_path: str,
@@ -79,11 +79,3 @@ These are just a few of the many attractions that Paris has to offer. With so mu
             f"> {result['generation']['role'].capitalize()}: {result['generation']['content']}"
         )
         print("\n==================================\n")
-
-
-if __name__ == "__main__":
-    os.environ["RANK"] = "0"
-    os.environ["WORLD_SIZE"] = "1"
-    os.environ['MASTER_ADDR'] = '127.0.0.1'
-    os.environ['MASTER_PORT'] = '29500'
-    fire.Fire(main)

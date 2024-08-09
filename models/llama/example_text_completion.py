@@ -2,13 +2,11 @@
 # This software may be used and distributed in accordance with the terms of the Llama 3 Community License Agreement.
 
 from typing import List
-import os
 
-import fire
+from .llama import Llama
+from benchmarking import Profiler
 
-from llama import Llama
-
-
+@Profiler.profiling_decorator(record_name="text_completion", skip_profiling=True)
 def main(
     ckpt_dir: str,
     tokenizer_path: str,
@@ -61,11 +59,3 @@ def main(
         print(prompt)
         print(f"> {result['generation']}")
         print("\n==================================\n")
-
-
-if __name__ == "__main__":
-    os.environ["RANK"] = "0"
-    os.environ["WORLD_SIZE"] = "1"
-    os.environ['MASTER_ADDR'] = '127.0.0.1'
-    os.environ['MASTER_PORT'] = '29500'
-    fire.Fire(main)

@@ -7,19 +7,33 @@ import triton.ops
 
 def is_hip_mi200():
     target = triton.runtime.driver.active.get_current_target()
-    return target.backend == 'hip' and target.arch == 'gfx90a'
+    return target.backend == "hip" and target.arch == "gfx90a"
 
 
 def sparsify_tensor(x, mask, block):
-    ret = torch.empty((x.size(0), mask.sum(), block, block), dtype=x.dtype, device=x.device)
+    ret = torch.empty(
+        (x.size(0), mask.sum(), block, block), dtype=x.dtype, device=x.device
+    )
     for idx, (h, i, j) in enumerate(zip(*mask.nonzero(as_tuple=True))):
-        ret[:, idx, :, :] = x[:, h, i * block:(i + 1) * block, j * block:(j + 1) * block]
+        ret[:, idx, :, :] = x[
+            :, h, i * block : (i + 1) * block, j * block : (j + 1) * block
+        ]
     return ret
 
 
-def make_pair(shape, device="cuda", alpha=1e-2, beta=0., trans=False, data=None, dtype=torch.float32):
+def make_pair(
+    shape,
+    device="cuda",
+    alpha=1e-2,
+    beta=0.0,
+    trans=False,
+    data=None,
+    dtype=torch.float32,
+):
     if data is None:
-        data = torch.randn(shape, dtype=torch.float32, requires_grad=True, device=device)
+        data = torch.randn(
+            shape, dtype=torch.float32, requires_grad=True, device=device
+        )
     ref_ret = data
     ref_ret = ref_ret * alpha + beta
     ref_ret = ref_ret.half().to(dtype)
@@ -33,7 +47,7 @@ def make_pair(shape, device="cuda", alpha=1e-2, beta=0., trans=False, data=None,
 def mask_tensor(x, mask, block, value=0):
     ret = x.clone()
     for h, i, j in zip(*(mask == 0).nonzero(as_tuple=True)):
-        ret[:, h, i * block:(i + 1) * block, j * block:(j + 1) * block] = value
+        ret[:, h, i * block : (i + 1) * block, j * block : (j + 1) * block] = value
     return ret
 
 
@@ -42,7 +56,9 @@ def mask_tensor(x, mask, block, value=0):
 @pytest.mark.parametrize("TRANS_B", [False, True])
 @pytest.mark.parametrize("BLOCK", [16, 32, 64])
 @pytest.mark.parametrize("DTYPE", [torch.float16])
-def test_matmul(MODE, TRANS_A, TRANS_B, BLOCK, DTYPE, device, Z=3, H=2, M=512, N=384, K=256):
+def test_matmul(
+    MODE, TRANS_A, TRANS_B, BLOCK, DTYPE, device, Z=3, H=2, M=512, N=384, K=256
+):
     seed = 0
     torch.manual_seed(seed)
     is_sdd = MODE == "sdd"
@@ -64,8 +80,8 @@ def test_matmul(MODE, TRANS_A, TRANS_B, BLOCK, DTYPE, device, Z=3, H=2, M=512, N
     layout[1, 2, :] = 0
     layout[1, :, 1] = 0
     # create data
-    a_ref, a_tri = make_pair(a_shape, alpha=.1, dtype=DTYPE)
-    b_ref, b_tri = make_pair(b_shape, alpha=.1, dtype=DTYPE)
+    a_ref, a_tri = make_pair(a_shape, alpha=0.1, dtype=DTYPE)
+    b_ref, b_tri = make_pair(b_shape, alpha=0.1, dtype=DTYPE)
     dc_ref, dc_tri = make_pair(c_shape, dtype=DTYPE)
     # compute [torch]
     dc_ref = do_mask(dc_ref) if is_sdd else dc_ref
@@ -73,7 +89,10 @@ def test_matmul(MODE, TRANS_A, TRANS_B, BLOCK, DTYPE, device, Z=3, H=2, M=512, N
     b_ref = do_mask(b_ref) if is_dds else b_ref
     a_ref.retain_grad()
     b_ref.retain_grad()
-    c_ref = torch.matmul(a_ref.transpose(2, 3) if TRANS_A else a_ref, b_ref.transpose(2, 3) if TRANS_B else b_ref)
+    c_ref = torch.matmul(
+        a_ref.transpose(2, 3) if TRANS_A else a_ref,
+        b_ref.transpose(2, 3) if TRANS_B else b_ref,
+    )
     c_ref.backward(dc_ref)
     c_ref = do_sparsify(c_ref) if is_sdd else c_ref
     da_ref = do_sparsify(a_ref.grad) if is_dsd else a_ref.grad
@@ -84,7 +103,9 @@ def test_matmul(MODE, TRANS_A, TRANS_B, BLOCK, DTYPE, device, Z=3, H=2, M=512, N
     b_tri = do_sparsify(b_tri) if is_dds else b_tri
     a_tri.retain_grad()
     b_tri.retain_grad()
-    op = triton.ops.blocksparse.matmul(layout, BLOCK, MODE, trans_a=TRANS_A, trans_b=TRANS_B, device=device)
+    op = triton.ops.blocksparse.matmul(
+        layout, BLOCK, MODE, trans_a=TRANS_A, trans_b=TRANS_B, device=device
+    )
     c_tri = op(a_tri, b_tri)
     c_tri.backward(dc_tri)
     da_tri = a_tri.grad
@@ -93,7 +114,7 @@ def test_matmul(MODE, TRANS_A, TRANS_B, BLOCK, DTYPE, device, Z=3, H=2, M=512, N
     # Bigger tolerance for AMD MI200 devices.
     # MI200 devices use reduced precision fp16 and bf16 and flush input and
     # output denormal values to zero. Detailed info is at: https://pytorch.org/docs/stable/notes/numerical_accuracy.html#reduced-precision-fp16-and-bf16-gemms-and-convolutions-on-amd-instinct-mi200-devices
-    tol = {'atol': 1e-3, 'rtol': 0} if is_hip_mi200() else {}
+    tol = {"atol": 1e-3, "rtol": 0} if is_hip_mi200() else {}
 
     # compare
     torch.testing.assert_close(c_ref, c_tri, **tol)
@@ -171,7 +192,10 @@ def test_attention_fwd_bwd(
     # inputs
     qkv_shape = (batch_size, n_heads, n_ctx, 64)
     qkvs = [
-        torch.nn.Parameter(input_scale * torch.randn(qkv_shape), requires_grad=True).to(dtype).cuda() for _ in range(3)
+        torch.nn.Parameter(input_scale * torch.randn(qkv_shape), requires_grad=True)
+        .to(dtype)
+        .cuda()
+        for _ in range(3)
     ]
 
     # Triton:
@@ -181,7 +205,9 @@ def test_attention_fwd_bwd(
     query.retain_grad()
     key.retain_grad()
     value.retain_grad()
-    attn_out = triton_attention(layout, block, query=query, key=key, value=value, scale=scale)
+    attn_out = triton_attention(
+        layout, block, query=query, key=key, value=value, scale=scale
+    )
     # ad hoc loss
     loss = (attn_out**2).mean()
     loss.backward()
@@ -211,7 +237,7 @@ def test_attention_fwd_bwd(
     # Bigger tolerance for AMD MI200 devices.
     # MI200 devices use reduced precision fp16 and bf16 and flush input and
     # output denormal values to zero. Detailed info is at: https://pytorch.org/docs/stable/notes/numerical_accuracy.html#reduced-precision-fp16-and-bf16-gemms-and-convolutions-on-amd-instinct-mi200-devices
-    tol = {'atol': 1e-3, 'rtol': 0} if is_hip_mi200() else {}
+    tol = {"atol": 1e-3, "rtol": 0} if is_hip_mi200() else {}
     for g1, g2 in zip(grads, torch_grads):
         torch.testing.assert_close(g1, g2, **tol)
 
@@ -225,10 +251,12 @@ def triton_attention(
     value: torch.Tensor,
     scale: float,
 ):
-    sparse_dot_sdd_nt = triton.ops.blocksparse.matmul(layout, block, "sdd", trans_a=False, trans_b=True,
-                                                      device=value.device)
-    sparse_dot_dsd_nn = triton.ops.blocksparse.matmul(layout, block, "dsd", trans_a=False, trans_b=False,
-                                                      device=value.device)
+    sparse_dot_sdd_nt = triton.ops.blocksparse.matmul(
+        layout, block, "sdd", trans_a=False, trans_b=True, device=value.device
+    )
+    sparse_dot_dsd_nn = triton.ops.blocksparse.matmul(
+        layout, block, "dsd", trans_a=False, trans_b=False, device=value.device
+    )
     sparse_softmax = triton.ops.blocksparse.softmax(layout, block, device=value.device)
 
     w = sparse_dot_sdd_nt(query, key)

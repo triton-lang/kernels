@@ -8,8 +8,18 @@ import triton.language as tl
 def test_normalization_with_remat(device):
 
     @triton.jit
-    def triton_(in_out_ptr0, in_out_ptr1, in_ptr0, in_ptr1, in_ptr2, in_ptr3, xnumel, rnumel, XBLOCK: tl.constexpr,
-                RBLOCK: tl.constexpr):
+    def triton_(
+        in_out_ptr0,
+        in_out_ptr1,
+        in_ptr0,
+        in_ptr1,
+        in_ptr2,
+        in_ptr3,
+        xnumel,
+        rnumel,
+        XBLOCK: tl.constexpr,
+        RBLOCK: tl.constexpr,
+    ):
         xnumel = 512
         rnumel = 4096
         xoffset = tl.program_id(0) * XBLOCK
@@ -27,7 +37,12 @@ def test_normalization_with_remat(device):
             rindex = roffset + rbase
             rmask = rindex < rnumel
             r2 = rindex
-            tmp0 = tl.load(in_out_ptr0 + (r2 + (4096 * x3)), rmask & xmask, eviction_policy='evict_last', other=0)
+            tmp0 = tl.load(
+                in_out_ptr0 + (r2 + (4096 * x3)),
+                rmask & xmask,
+                eviction_policy="evict_last",
+                other=0,
+            )
             tmp2 = tmp0 - tmp1
             tmp4 = 1e-05
             tmp5 = tmp3 + tmp4
@@ -39,7 +54,11 @@ def test_normalization_with_remat(device):
             tmp12 = tmp10 * tmp11
             tmp14 = tmp12 + tmp13
             _tmp17 = tl.where(rmask & xmask, _tmp17 + tmp14, _tmp17)
-            tl.store(in_out_ptr0 + (r2 + (4096 * x3) + tl.zeros([XBLOCK, RBLOCK], tl.int32)), tmp14, rmask & xmask)
+            tl.store(
+                in_out_ptr0 + (r2 + (4096 * x3) + tl.zeros([XBLOCK, RBLOCK], tl.int32)),
+                tmp14,
+                rmask & xmask,
+            )
         tmp17 = tl.sum(_tmp17, 1)[:, None]
         tmp18 = 4096.0
         tmp19 = tmp17 / tmp18
@@ -53,8 +72,12 @@ def test_normalization_with_remat(device):
     arg115_1 = torch.rand(64, device=device)
     arg8_1 = torch.rand(64, device=device)
     arg9_1 = torch.rand(64, device=device)
-    triton_[(512, )](buf14, buf16, arg114_1, arg115_1, arg8_1, arg9_1, 512, 4096, 1, 2048)
-    torch.testing.assert_close(buf16.mean().item(), buf14.mean().item(), atol=1e-7, rtol=0)
+    triton_[(512,)](
+        buf14, buf16, arg114_1, arg115_1, arg8_1, arg9_1, 512, 4096, 1, 2048
+    )
+    torch.testing.assert_close(
+        buf16.mean().item(), buf14.mean().item(), atol=1e-7, rtol=0
+    )
 
 
 def test_avg_pool_bw(device):
@@ -65,7 +88,7 @@ def test_avg_pool_bw(device):
         xindex = xoffset + tl.arange(0, XBLOCK)[:]
         x1 = (xindex // 8) % 8
         x0 = xindex % 8
-        x2 = (xindex // 64)
+        x2 = xindex // 64
         x5 = xindex
         tmp0 = (-1) + x1
         tmp1 = (-1) + x0
@@ -84,7 +107,9 @@ def test_avg_pool_bw(device):
         tmp14 = tl.where(tmp10 != tmp10, tmp10, tl.where(tmp10 < tmp13, tmp10, tmp13))
         tmp15 = tmp9 - tmp12
         tmp16 = tl.where(tmp11 != tmp11, tmp11, tl.where(tmp11 < tmp15, tmp11, tmp15))
-        tmp17 = tl.load(in_ptr0 + (tmp16 + (8 * tmp14) + (64 * x2)), None).to(tl.float32)
+        tmp17 = tl.load(in_ptr0 + (tmp16 + (8 * tmp14) + (64 * x2)), None).to(
+            tl.float32
+        )
         tmp18 = tmp17 / 9
         tmp19 = tmp10 < tmp8
         tmp20 = tmp11 < tmp9
@@ -93,7 +118,9 @@ def test_avg_pool_bw(device):
         tmp23 = tl.where(tmp21, tmp18, tmp22)
         tmp24 = tmp6 + tmp12
         tmp25 = tl.where(tmp24 != tmp24, tmp24, tl.where(tmp24 < tmp15, tmp24, tmp15))
-        tmp26 = tl.load(in_ptr0 + (tmp25 + (8 * tmp14) + (64 * x2)), None).to(tl.float32)
+        tmp26 = tl.load(in_ptr0 + (tmp25 + (8 * tmp14) + (64 * x2)), None).to(
+            tl.float32
+        )
         tmp27 = tmp26 / 9
         tmp28 = tmp24 < tmp9
         tmp29 = tmp19 & tmp28
@@ -102,7 +129,9 @@ def test_avg_pool_bw(device):
         tmp32 = 2
         tmp33 = tmp6 + tmp32
         tmp34 = tl.where(tmp33 != tmp33, tmp33, tl.where(tmp33 < tmp15, tmp33, tmp15))
-        tmp35 = tl.load(in_ptr0 + (tmp34 + (8 * tmp14) + (64 * x2)), None).to(tl.float32)
+        tmp35 = tl.load(in_ptr0 + (tmp34 + (8 * tmp14) + (64 * x2)), None).to(
+            tl.float32
+        )
         tmp36 = tmp35 / 9
         tmp37 = tmp33 < tmp9
         tmp38 = tmp19 & tmp37
@@ -110,36 +139,48 @@ def test_avg_pool_bw(device):
         tmp40 = tl.where(tmp38, tmp39, tmp31)
         tmp41 = tmp5 + tmp12
         tmp42 = tl.where(tmp41 != tmp41, tmp41, tl.where(tmp41 < tmp13, tmp41, tmp13))
-        tmp43 = tl.load(in_ptr0 + (tmp16 + (8 * tmp42) + (64 * x2)), None).to(tl.float32)
+        tmp43 = tl.load(in_ptr0 + (tmp16 + (8 * tmp42) + (64 * x2)), None).to(
+            tl.float32
+        )
         tmp44 = tmp43 / 9
         tmp45 = tmp41 < tmp8
         tmp46 = tmp45 & tmp20
         tmp47 = tmp40 + tmp44
         tmp48 = tl.where(tmp46, tmp47, tmp40)
-        tmp49 = tl.load(in_ptr0 + (tmp25 + (8 * tmp42) + (64 * x2)), None).to(tl.float32)
+        tmp49 = tl.load(in_ptr0 + (tmp25 + (8 * tmp42) + (64 * x2)), None).to(
+            tl.float32
+        )
         tmp50 = tmp49 / 9
         tmp51 = tmp45 & tmp28
         tmp52 = tmp48 + tmp50
         tmp53 = tl.where(tmp51, tmp52, tmp48)
-        tmp54 = tl.load(in_ptr0 + (tmp34 + (8 * tmp42) + (64 * x2)), None).to(tl.float32)
+        tmp54 = tl.load(in_ptr0 + (tmp34 + (8 * tmp42) + (64 * x2)), None).to(
+            tl.float32
+        )
         tmp55 = tmp54 / 9
         tmp56 = tmp45 & tmp37
         tmp57 = tmp53 + tmp55
         tmp58 = tl.where(tmp56, tmp57, tmp53)
         tmp59 = tmp5 + tmp32
         tmp60 = tl.where(tmp59 != tmp59, tmp59, tl.where(tmp59 < tmp13, tmp59, tmp13))
-        tmp61 = tl.load(in_ptr0 + (tmp16 + (8 * tmp60) + (64 * x2)), None).to(tl.float32)
+        tmp61 = tl.load(in_ptr0 + (tmp16 + (8 * tmp60) + (64 * x2)), None).to(
+            tl.float32
+        )
         tmp62 = tmp61 / 9
         tmp63 = tmp59 < tmp8
         tmp64 = tmp63 & tmp20
         tmp65 = tmp58 + tmp62
         tmp66 = tl.where(tmp64, tmp65, tmp58)
-        tmp67 = tl.load(in_ptr0 + (tmp25 + (8 * tmp60) + (64 * x2)), None).to(tl.float32)
+        tmp67 = tl.load(in_ptr0 + (tmp25 + (8 * tmp60) + (64 * x2)), None).to(
+            tl.float32
+        )
         tmp68 = tmp67 / 9
         tmp69 = tmp63 & tmp28
         tmp70 = tmp66 + tmp68
         tmp71 = tl.where(tmp69, tmp70, tmp66)
-        tmp72 = tl.load(in_ptr0 + (tmp34 + (8 * tmp60) + (64 * x2)), None).to(tl.float32)
+        tmp72 = tl.load(in_ptr0 + (tmp34 + (8 * tmp60) + (64 * x2)), None).to(
+            tl.float32
+        )
         tmp73 = tmp72 / 9
         tmp74 = tmp63 & tmp37
         tmp75 = tmp71 + tmp73
@@ -149,7 +190,7 @@ def test_avg_pool_bw(device):
     inp = torch.ones(8, 2048, 8, 8, device=device, dtype=torch.half)
     out = torch.ones_like(inp) * 3
     numel = inp.numel()
-    triton_[(numel // 1024, )](inp, out, 1024)
+    triton_[(numel // 1024,)](inp, out, 1024)
     out_ref = torch.ones_like(inp)
     out_ref[:, :, 1:7, 0::7] = 2 / 3
     out_ref[:, :, 0::7, 1:7] = 2 / 3
@@ -174,7 +215,7 @@ def test_scan2d_broadcast(RBLOCK, num_warps, device):
     XBLOCK = 4
     input = torch.randint(0, 10, (1, RBLOCK), dtype=torch.int64, device=device)
     output = torch.empty((XBLOCK, RBLOCK), dtype=torch.int64, device=device)
-    fn[(1, )](input, output, XBLOCK, RBLOCK, num_warps=num_warps)
+    fn[(1,)](input, output, XBLOCK, RBLOCK, num_warps=num_warps)
     ref = input.cumsum(1).broadcast_to((XBLOCK, RBLOCK))
     torch.testing.assert_close(output, ref)
 
@@ -193,6 +234,6 @@ def test_scan2d_for(device):
 
     RBLOCK = 8
     out0 = torch.empty(RBLOCK, device=device, dtype=torch.int64)
-    fn[(1, )](out0, RBLOCK, RBLOCK)
+    fn[(1,)](out0, RBLOCK, RBLOCK)
     ref = torch.arange(RBLOCK, device=device, dtype=torch.int64) + 1
     torch.testing.assert_close(out0, ref)

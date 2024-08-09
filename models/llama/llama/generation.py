@@ -15,10 +15,10 @@ from fairscale.nn.model_parallel.initialize import (
     model_parallel_is_initialized,
 )
 
-from llama.model import ModelArgs, Transformer
-from llama.mathOps import MathOps
-from llama.tokenizer import ChatFormat, Dialog, Message, Tokenizer
-
+from .model import ModelArgs, Transformer
+from .mathOps import MathOps
+from .tokenizer import ChatFormat, Dialog, Message, Tokenizer
+from benchmarking import Profiler
 
 class CompletionPrediction(TypedDict, total=False):
     generation: str
@@ -65,15 +65,21 @@ class Llama:
             This method initializes the distributed process group, sets the device to CUDA,
             and loads the pre-trained model and tokenizer.
         """
-        assert 1 <= max_seq_len <= 8192, f"max_seq_len must be between 1 and 8192, got {max_seq_len}."
-        assert os.path.isdir(ckpt_dir), f"Checkpoint directory '{ckpt_dir}' does not exist."
-        assert os.path.isfile(tokenizer_path), f"Tokenizer file '{tokenizer_path}' does not exist."
+        assert (
+            1 <= max_seq_len <= 8192
+        ), f"max_seq_len must be between 1 and 8192, got {max_seq_len}."
+        assert os.path.isdir(
+            ckpt_dir
+        ), f"Checkpoint directory '{ckpt_dir}' does not exist."
+        assert os.path.isfile(
+            tokenizer_path
+        ), f"Tokenizer file '{tokenizer_path}' does not exist."
 
         if not torch.distributed.is_initialized():
             torch.distributed.init_process_group("nccl")
+        if model_parallel_size is None:
+            model_parallel_size = int(os.environ.get("WORLD_SIZE", 1))
         if not model_parallel_is_initialized():
-            if model_parallel_size is None:
-                model_parallel_size = int(os.environ.get("WORLD_SIZE", 1))
             initialize_model_parallel(model_parallel_size)
 
         local_rank = int(os.environ.get("LOCAL_RANK", 0))
@@ -113,7 +119,9 @@ class Llama:
 
         return Llama(model, tokenizer, use_triton)
 
-    def __init__(self, model: Transformer, tokenizer: Tokenizer, use_triton: bool = False):
+    def __init__(
+        self, model: Transformer, tokenizer: Tokenizer, use_triton: bool = False
+    ):
         self.model = model
         self.tokenizer = tokenizer
         self.formatter = ChatFormat(tokenizer)
@@ -121,6 +129,7 @@ class Llama:
         self.Math = MathOps(use_triton)
 
     @torch.inference_mode()
+    @Profiler.profiling_decorator(record_name="generate", skip_profiling=True)
     def generate(
         self,
         prompt_tokens: List[List[int]],
@@ -170,11 +179,13 @@ class Llama:
         input_text_mask = tokens != pad_id
         if min_prompt_len == total_len:
             logits = self.model.forward(tokens, prev_pos)
-            
-            token_logprobs = self.Math.cross_entropy(input=logits.transpose(1, 2),
+
+            token_logprobs = self.Math.cross_entropy(
+                input=logits.transpose(1, 2),
                 target=tokens,
                 reduction="none",
-                ignore_index=pad_id,)
+                ignore_index=pad_id,
+            )
 
         stop_tokens = torch.tensor(list(self.tokenizer.stop_tokens))
 
@@ -228,6 +239,7 @@ class Llama:
             out_logprobs.append(probs)
         return (out_tokens, out_logprobs if logprobs else None)
 
+    @Profiler.profiling_decorator(skip_profiling=True)
     def text_completion(
         self,
         prompts: List[str],
@@ -279,6 +291,7 @@ class Llama:
             ]
         return [{"generation": self.tokenizer.decode(t)} for t in generation_tokens]
 
+    @Profiler.profiling_decorator(skip_profiling=True)
     def chat_completion(
         self,
         dialogs: List[Dialog],
