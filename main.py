@@ -33,7 +33,7 @@ def main(operation: str, profile = False, benchmark = False, **kwargs):
         profiles["non_triton"] = Profiler.get_profiling_data()
     elif profile:
         runner(operation, kwargs)
-        data = Profiler.key_averages()
+        data = Profiler.get_profiling_data()
         if kwargs["use_triton"]:
             profiles["triton"] = data
         else:
