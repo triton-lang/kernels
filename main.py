@@ -9,7 +9,7 @@ from benchmarking import Profiler, compare_benchmarks
 import pprint
 
 
-def main(operation: str, profile = False, benchmark = False, **kwargs):
+def main(operation: str, profile=False, benchmark=False, **kwargs):
     """
     all kwargs are passed to the operation you choose.
 
@@ -20,7 +20,7 @@ def main(operation: str, profile = False, benchmark = False, **kwargs):
     profiles = {}
     benchmarks = {}
     if benchmark:
-        #warm_up
+        # warm_up
         torch.cuda.empty_cache()
         kwargs["suppress_prints"] = True
         p = Profiler(False, False)
@@ -54,7 +54,6 @@ def main(operation: str, profile = False, benchmark = False, **kwargs):
     else:
         runner(operation, kwargs)
 
-    
     if profile:
         for k, v in profiles.items():
             print(f"Profile for {k}")
@@ -74,6 +73,7 @@ def runner(operation: str, kwargs):
         llama_example_text_completion(**kwargs)
     else:
         raise ValueError(f"Unknown operation: {operation}")
+
 
 if __name__ == "__main__":
     os.environ["RANK"] = "0"

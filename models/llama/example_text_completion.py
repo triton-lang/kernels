@@ -6,6 +6,7 @@ from typing import List
 from .llama import Llama
 from benchmarking import Profiler
 
+
 @Profiler.profiling_decorator(record_name="text_completion", skip_profiling=True)
 def main(
     ckpt_dir: str,
@@ -56,7 +57,7 @@ def main(
         temperature=temperature,
         top_p=top_p,
     )
-    if  suppress_prints:
+    if suppress_prints:
         return
     for prompt, result in zip(prompts, results):
         print(prompt)

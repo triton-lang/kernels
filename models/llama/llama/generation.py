@@ -20,6 +20,7 @@ from .math_ops import MathOps
 from .tokenizer import ChatFormat, Dialog, Message, Tokenizer
 from benchmarking import Profiler
 
+
 class CompletionPrediction(TypedDict, total=False):
     generation: str
     tokens: List[str]  # not required

@@ -73,7 +73,7 @@ These are just a few of the many attractions that Paris has to offer. With so mu
         top_p=top_p,
     )
 
-    if  suppress_prints:
+    if suppress_prints:
         return
     for dialog, result in zip(dialogs, results):
         for msg in dialog:

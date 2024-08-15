@@ -173,7 +173,9 @@ class FeedForward(nn.Module):
             dim, hidden_dim, bias=False, gather_output=False, init_method=lambda x: x
         )
 
-    @Profiler.profiling_decorator(record_name="feed_forward_forward", skip_profiling=True)
+    @Profiler.profiling_decorator(
+        record_name="feed_forward_forward", skip_profiling=True
+    )
     def forward(self, x):
         return self.w2(F.silu(self.w1(x)) * self.w3(x))
 
@@ -198,7 +200,9 @@ class TransformerBlock(nn.Module):
         self.attention_norm = self.Math.get_rms_norm(args.dim, eps=args.norm_eps)
         self.ffn_norm = self.Math.get_rms_norm(args.dim, eps=args.norm_eps)
 
-    @Profiler.profiling_decorator(record_name="transform_block_forward", skip_profiling=True)
+    @Profiler.profiling_decorator(
+        record_name="transform_block_forward", skip_profiling=True
+    )
     def forward(
         self,
         x: torch.Tensor,
@@ -240,7 +244,9 @@ class Transformer(nn.Module):
         )
 
     @torch.inference_mode()
-    @Profiler.profiling_decorator(record_name="transformer_forward", skip_profiling=True)
+    @Profiler.profiling_decorator(
+        record_name="transformer_forward", skip_profiling=True
+    )
     def forward(self, tokens: torch.Tensor, start_pos: int):
         _bsz, seqlen = tokens.shape
         h = self.tok_embeddings(tokens)
