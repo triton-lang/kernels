@@ -3,7 +3,7 @@
 
 import math
 from dataclasses import dataclass
-from typing import Optional, Tuple
+from typing import Optional
 
 import fairscale.nn.model_parallel.initialize as fs_init
 import torch
@@ -14,6 +14,8 @@ from fairscale.nn.model_parallel.layers import (
     VocabParallelEmbedding,
 )
 from torch import nn
+from .math_ops import MathOps
+from benchmarking import Profiler
 
 
 @dataclass
@@ -32,49 +34,6 @@ class ModelArgs:
     max_seq_len: int = 2048
 
 
-class RMSNorm(torch.nn.Module):
-    def __init__(self, dim: int, eps: float = 1e-6):
-        super().__init__()
-        self.eps = eps
-        self.weight = nn.Parameter(torch.ones(dim))
-
-    def _norm(self, x):
-        return x * torch.rsqrt(x.pow(2).mean(-1, keepdim=True) + self.eps)
-
-    def forward(self, x):
-        output = self._norm(x.float()).type_as(x)
-        return output * self.weight
-
-
-def precompute_freqs_cis(dim: int, end: int, theta: float = 10000.0):
-    freqs = 1.0 / (theta ** (torch.arange(0, dim, 2)[: (dim // 2)].float() / dim))
-    t = torch.arange(end, device=freqs.device, dtype=torch.float32)
-    freqs = torch.outer(t, freqs)
-    freqs_cis = torch.polar(torch.ones_like(freqs), freqs)  # complex64
-    return freqs_cis
-
-
-def reshape_for_broadcast(freqs_cis: torch.Tensor, x: torch.Tensor):
-    ndim = x.ndim
-    assert 0 <= 1 < ndim
-    assert freqs_cis.shape == (x.shape[1], x.shape[-1])
-    shape = [d if i == 1 or i == ndim - 1 else 1 for i, d in enumerate(x.shape)]
-    return freqs_cis.view(*shape)
-
-
-def apply_rotary_emb(
-    xq: torch.Tensor,
-    xk: torch.Tensor,
-    freqs_cis: torch.Tensor,
-) -> Tuple[torch.Tensor, torch.Tensor]:
-    xq_ = torch.view_as_complex(xq.float().reshape(*xq.shape[:-1], -1, 2))
-    xk_ = torch.view_as_complex(xk.float().reshape(*xk.shape[:-1], -1, 2))
-    freqs_cis = reshape_for_broadcast(freqs_cis, xq_)
-    xq_out = torch.view_as_real(xq_ * freqs_cis).flatten(3)
-    xk_out = torch.view_as_real(xk_ * freqs_cis).flatten(3)
-    return xq_out.type_as(xq), xk_out.type_as(xk)
-
-
 def repeat_kv(x: torch.Tensor, n_rep: int) -> torch.Tensor:
     """torch.repeat_interleave(x, dim=2, repeats=n_rep)"""
     bs, slen, n_kv_heads, head_dim = x.shape
@@ -88,8 +47,10 @@ def repeat_kv(x: torch.Tensor, n_rep: int) -> torch.Tensor:
 
 
 class Attention(nn.Module):
-    def __init__(self, args: ModelArgs):
+    def __init__(self, args: ModelArgs, use_triton=False):
         super().__init__()
+        self.use_triton = use_triton
+        self.Math = MathOps(use_triton)
         self.n_kv_heads = args.n_heads if args.n_kv_heads is None else args.n_kv_heads
         model_parallel_size = fs_init.get_model_parallel_world_size()
         self.n_local_heads = args.n_heads // model_parallel_size
@@ -143,6 +104,7 @@ class Attention(nn.Module):
             )
         ).cuda()
 
+    @Profiler.profiling_decorator(record_name="attention_forward", skip_profiling=True)
     def forward(
         self,
         x: torch.Tensor,
@@ -157,7 +119,7 @@ class Attention(nn.Module):
         xk = xk.view(bsz, seqlen, self.n_local_kv_heads, self.head_dim)
         xv = xv.view(bsz, seqlen, self.n_local_kv_heads, self.head_dim)
 
-        xq, xk = apply_rotary_emb(xq, xk, freqs_cis=freqs_cis)
+        xq, xk = self.Math.apply_rotary_emb(xq, xk, freqs_cis=freqs_cis)
 
         self.cache_k = self.cache_k.to(xq)
         self.cache_v = self.cache_v.to(xq)
@@ -181,11 +143,7 @@ class Attention(nn.Module):
         values = values.transpose(
             1, 2
         )  # (bs, n_local_heads, cache_len + seqlen, head_dim)
-        scores = torch.matmul(xq, keys.transpose(2, 3)) / math.sqrt(self.head_dim)
-        if mask is not None:
-            scores = scores + mask  # (bs, n_local_heads, seqlen, cache_len + seqlen)
-        scores = F.softmax(scores.float(), dim=-1).type_as(xq)
-        output = torch.matmul(scores, values)  # (bs, n_local_heads, seqlen, head_dim)
+        output = self.Math.attention(xq, keys, values, self.head_dim, mask)
         output = output.transpose(1, 2).contiguous().view(bsz, seqlen, -1)
         return self.wo(output)
 
@@ -215,17 +173,23 @@ class FeedForward(nn.Module):
             dim, hidden_dim, bias=False, gather_output=False, init_method=lambda x: x
         )
 
+    @Profiler.profiling_decorator(
+        record_name="feed_forward_forward", skip_profiling=True
+    )
     def forward(self, x):
         return self.w2(F.silu(self.w1(x)) * self.w3(x))
 
 
 class TransformerBlock(nn.Module):
-    def __init__(self, layer_id: int, args: ModelArgs):
+    def __init__(self, layer_id: int, args: ModelArgs, use_triton=False):
         super().__init__()
+        self.use_triton = use_triton
+        self.Math = MathOps(use_triton)
+
         self.n_heads = args.n_heads
         self.dim = args.dim
         self.head_dim = args.dim // args.n_heads
-        self.attention = Attention(args)
+        self.attention = Attention(args, use_triton=self.use_triton)
         self.feed_forward = FeedForward(
             dim=args.dim,
             hidden_dim=4 * args.dim,
@@ -233,9 +197,12 @@ class TransformerBlock(nn.Module):
             ffn_dim_multiplier=args.ffn_dim_multiplier,
         )
         self.layer_id = layer_id
-        self.attention_norm = RMSNorm(args.dim, eps=args.norm_eps)
-        self.ffn_norm = RMSNorm(args.dim, eps=args.norm_eps)
+        self.attention_norm = self.Math.get_rms_norm(args.dim, eps=args.norm_eps)
+        self.ffn_norm = self.Math.get_rms_norm(args.dim, eps=args.norm_eps)
 
+    @Profiler.profiling_decorator(
+        record_name="transform_block_forward", skip_profiling=True
+    )
     def forward(
         self,
         x: torch.Tensor,
@@ -249,8 +216,10 @@ class TransformerBlock(nn.Module):
 
 
 class Transformer(nn.Module):
-    def __init__(self, params: ModelArgs):
+    def __init__(self, params: ModelArgs, use_triton=False):
         super().__init__()
+        self.use_triton = use_triton
+        self.Math = MathOps(use_triton)
         self.params = params
         self.vocab_size = params.vocab_size
         self.n_layers = params.n_layers
@@ -261,20 +230,23 @@ class Transformer(nn.Module):
 
         self.layers = torch.nn.ModuleList()
         for layer_id in range(params.n_layers):
-            self.layers.append(TransformerBlock(layer_id, params))
+            self.layers.append(TransformerBlock(layer_id, params, self.use_triton))
 
-        self.norm = RMSNorm(params.dim, eps=params.norm_eps)
+        self.norm = self.Math.get_rms_norm(params.dim, eps=params.norm_eps)
         self.output = ColumnParallelLinear(
             params.dim, params.vocab_size, bias=False, init_method=lambda x: x
         )
 
-        self.freqs_cis = precompute_freqs_cis(
+        self.freqs_cis = self.Math.precompute_freqs_cis(
             params.dim // params.n_heads,
             params.max_seq_len * 2,
             params.rope_theta,
         )
 
     @torch.inference_mode()
+    @Profiler.profiling_decorator(
+        record_name="transformer_forward", skip_profiling=True
+    )
     def forward(self, tokens: torch.Tensor, start_pos: int):
         _bsz, seqlen = tokens.shape
         h = self.tok_embeddings(tokens)

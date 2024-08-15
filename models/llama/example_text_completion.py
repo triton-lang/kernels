@@ -3,19 +3,21 @@
 
 from typing import List
 
-import fire
+from .llama import Llama
+from benchmarking import Profiler
 
-from llama import Llama
 
-
+@Profiler.profiling_decorator(record_name="text_completion", skip_profiling=True)
 def main(
     ckpt_dir: str,
     tokenizer_path: str,
+    use_triton: bool = False,
     temperature: float = 0.6,
     top_p: float = 0.9,
     max_seq_len: int = 128,
     max_gen_len: int = 64,
     max_batch_size: int = 4,
+    suppress_prints: bool = False,
 ):
     """
     Examples to run with the pre-trained models (no fine-tuning). Prompts are
@@ -29,6 +31,7 @@ def main(
         tokenizer_path=tokenizer_path,
         max_seq_len=max_seq_len,
         max_batch_size=max_batch_size,
+        use_triton=use_triton,
     )
 
     prompts: List[str] = [
@@ -54,11 +57,9 @@ def main(
         temperature=temperature,
         top_p=top_p,
     )
+    if suppress_prints:
+        return
     for prompt, result in zip(prompts, results):
         print(prompt)
         print(f"> {result['generation']}")
         print("\n==================================\n")
-
-
-if __name__ == "__main__":
-    fire.Fire(main)

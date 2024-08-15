@@ -1,21 +1,22 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
 # This software may be used and distributed in accordance with the terms of the Llama 3 Community License Agreement.
-
 from typing import List, Optional
 
-import fire
+from .llama import Dialog, Llama
+from benchmarking import Profiler
 
-from llama import Dialog, Llama
 
-
+@Profiler.profiling_decorator(record_name="chat_completion", skip_profiling=True)
 def main(
     ckpt_dir: str,
     tokenizer_path: str,
+    use_triton: bool = False,
     temperature: float = 0.6,
     top_p: float = 0.9,
     max_seq_len: int = 512,
     max_batch_size: int = 4,
     max_gen_len: Optional[int] = None,
+    suppress_prints: bool = False,
 ):
     """
     Examples to run with the models finetuned for chat. Prompts correspond of chat
@@ -33,6 +34,7 @@ def main(
         tokenizer_path=tokenizer_path,
         max_seq_len=max_seq_len,
         max_batch_size=max_batch_size,
+        use_triton=use_triton,
     )
 
     dialogs: List[Dialog] = [
@@ -71,6 +73,8 @@ These are just a few of the many attractions that Paris has to offer. With so mu
         top_p=top_p,
     )
 
+    if suppress_prints:
+        return
     for dialog, result in zip(dialogs, results):
         for msg in dialog:
             print(f"{msg['role'].capitalize()}: {msg['content']}\n")
@@ -78,7 +82,3 @@ These are just a few of the many attractions that Paris has to offer. With so mu
             f"> {result['generation']['role'].capitalize()}: {result['generation']['content']}"
         )
         print("\n==================================\n")
-
-
-if __name__ == "__main__":
-    fire.Fire(main)
