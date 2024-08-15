@@ -1,3 +1,4 @@
+import math
 import torch.nn.functional as F
 import torch
 import triton
@@ -6,7 +7,9 @@ from torch import nn
 from kernels.matmul import matmul
 from kernels.cross_entropy import cross_entropy
 from kernels.matmul import matmul
+from kernels.flash_attention import attention
 from benchmarking import Profiler
+import time
 
 def reshape_for_broadcast(freqs_cis: torch.Tensor, x: torch.Tensor):
     ndim = x.ndim
@@ -43,6 +46,7 @@ class _RMSNorm(torch.nn.Module):
 
 
 class MathOps:
+    printed_attention = False
     def __init__(self, use_triton=False):
         self.use_triton = use_triton
 
@@ -52,6 +56,17 @@ class MathOps:
             return torch.matmul(x, y)
         else:
             return torch.matmul(x, y)
+    
+    @Profiler.profiling_decorator("attention")
+    def attention(self, xq, keys, values, head_dim, mask):
+        scores = self.matmul(xq, keys.transpose(2, 3)) / math.sqrt(head_dim)
+        if mask is not None:
+            scores = scores + mask  # (bs, n_local_heads, seqlen, cache_len + seqlen)
+        scores = self.softmax(scores.float(), dim=-1).type_as(xq)
+        output = self.matmul(
+            scores, values
+        )  # (bs, n_local_heads, seqlen, head_dim)
+        return output
 
     @Profiler.profiling_decorator("softmax")
     def softmax(self, x, dim):

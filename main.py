@@ -20,7 +20,16 @@ def main(operation: str, profile = False, benchmark = False, **kwargs):
     profiles = {}
     benchmarks = {}
     if benchmark:
+        #warm_up
+        torch.cuda.empty_cache()
+        kwargs["suppress_prints"] = True
+        p = Profiler(False, False)
+        runner(operation, kwargs)
+
         kwargs["use_triton"] = False
+        Profiler.reset()
+        p = Profiler(profile, benchmark)
+        torch.cuda.empty_cache()
         runner(operation, kwargs)
         benchmarks["triton"] = Profiler.get_benchmark_vals()
         profiles["triton"] = Profiler.get_profiling_data()
@@ -28,6 +37,10 @@ def main(operation: str, profile = False, benchmark = False, **kwargs):
         p = Profiler(profile, benchmark)
 
         kwargs["use_triton"] = True
+        kwargs["suppress_prints"] = False
+        Profiler.reset()
+        p = Profiler(profile, benchmark)
+        torch.cuda.empty_cache()
         runner(operation, kwargs)
         benchmarks["non_triton"] = Profiler.get_benchmark_vals()
         profiles["non_triton"] = Profiler.get_profiling_data()
@@ -38,6 +51,9 @@ def main(operation: str, profile = False, benchmark = False, **kwargs):
             profiles["triton"] = data
         else:
             profiles["non_triton"] = data
+    else:
+        runner(operation, kwargs)
+
     
     if profile:
         for k, v in profiles.items():

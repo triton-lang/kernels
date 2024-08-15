@@ -16,7 +16,7 @@ from fairscale.nn.model_parallel.initialize import (
 )
 
 from .model import ModelArgs, Transformer
-from .mathOps import MathOps
+from .math_ops import MathOps
 from .tokenizer import ChatFormat, Dialog, Message, Tokenizer
 from benchmarking import Profiler
 

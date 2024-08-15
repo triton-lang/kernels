@@ -14,7 +14,7 @@ from fairscale.nn.model_parallel.layers import (
     VocabParallelEmbedding,
 )
 from torch import nn
-from .mathOps import MathOps
+from .math_ops import MathOps
 from benchmarking import Profiler
 
 
@@ -143,13 +143,7 @@ class Attention(nn.Module):
         values = values.transpose(
             1, 2
         )  # (bs, n_local_heads, cache_len + seqlen, head_dim)
-        scores = self.Math.matmul(xq, keys.transpose(2, 3)) / math.sqrt(self.head_dim)
-        if mask is not None:
-            scores = scores + mask  # (bs, n_local_heads, seqlen, cache_len + seqlen)
-        scores = self.Math.softmax(scores.float(), dim=-1).type_as(xq)
-        output = self.Math.matmul(
-            scores, values
-        )  # (bs, n_local_heads, seqlen, head_dim)
+        output = self.Math.attention(xq, keys, values, self.head_dim, mask)
         output = output.transpose(1, 2).contiguous().view(bsz, seqlen, -1)
         return self.wo(output)
 

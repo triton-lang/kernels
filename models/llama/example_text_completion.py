@@ -16,6 +16,7 @@ def main(
     max_seq_len: int = 128,
     max_gen_len: int = 64,
     max_batch_size: int = 4,
+    suppress_prints: bool = False,
 ):
     """
     Examples to run with the pre-trained models (no fine-tuning). Prompts are
@@ -55,6 +56,8 @@ def main(
         temperature=temperature,
         top_p=top_p,
     )
+    if  suppress_prints:
+        return
     for prompt, result in zip(prompts, results):
         print(prompt)
         print(f"> {result['generation']}")

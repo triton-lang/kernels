@@ -16,6 +16,7 @@ def main(
     max_seq_len: int = 512,
     max_batch_size: int = 4,
     max_gen_len: Optional[int] = None,
+    suppress_prints: bool = False,
 ):
     """
     Examples to run with the models finetuned for chat. Prompts correspond of chat
@@ -72,6 +73,8 @@ These are just a few of the many attractions that Paris has to offer. With so mu
         top_p=top_p,
     )
 
+    if  suppress_prints:
+        return
     for dialog, result in zip(dialogs, results):
         for msg in dialog:
             print(f"{msg['role'].capitalize()}: {msg['content']}\n")
