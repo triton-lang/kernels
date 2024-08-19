@@ -272,7 +272,7 @@ class _matmul(torch.autograd.Function):
             b = b.contiguous()
         # checks constraints
         assert (
-            a.shape[1] == b.shape[2]
+            a.shape[1] == b.shape[0]
         ), f"incompatible dimensions {a.shape} and {b.shape}"
         M, K = a.shape
         _, N = b.shape
