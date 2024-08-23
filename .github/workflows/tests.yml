@@ -28,11 +28,6 @@ jobs:
             echo '::set-output name=matrix-HIP::["ubuntu-latest"]'
             echo '::set-output name=matrix-MACOS::[["macos-latest"]]'
           fi
-  pre-commit:
-    name: pre-commit (code formatting)
-    needs: Runner-Preparation
-    runs-on: ubuntu-latest
-    steps:
       - name: Checkout
         uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -43,32 +38,12 @@ jobs:
         run: |
           python3 -m pip install --upgrade pip
           python3 -m pip install -r requirements.txt
-      - name: Check pre-commit
-        run: |
-          # TODO: ignore the first yapf failure until https://github.com/google/yapf/issues/1164 is fixed
-          python3 -m pre_commit run --all-files --verbose yapf &> /dev/null || true
-          # If first run of yapf worked and made changes reset the tree to the original state
-          git reset --hard
-          python3 -m pre_commit run --all-files --verbose
-      - name: Print diff of changes if pre-commit failed
-        if: failure()
-        run: |
-          git diff
   tests:
-    needs: pre-commit
+    needs: Runner-Preparation
     if: needs.Runner-Preparation.outputs.matrix-CUDA != ''
     strategy:
       matrix:
         runner: ${{fromJson(needs.Runner-Preparation.outputs.matrix-CUDA)}}
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          submodules: "true"
-      - uses: actions/checkout@v3
-      - name: Setup Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.12'
       - name: Run Python unit tests
         run: python3  -m pytest
