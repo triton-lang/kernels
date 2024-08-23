@@ -2,7 +2,7 @@ import pytest
 import torch
 
 import triton
-import triton.ops
+import kernels
 
 
 def is_hip_mi200():
@@ -57,7 +57,7 @@ def mask_tensor(x, mask, block, value=0):
 @pytest.mark.parametrize("BLOCK", [16, 32, 64])
 @pytest.mark.parametrize("DTYPE", [torch.float16])
 def test_matmul(
-    MODE, TRANS_A, TRANS_B, BLOCK, DTYPE, device, Z=3, H=2, M=512, N=384, K=256
+    MODE, TRANS_A, TRANS_B, BLOCK, DTYPE, device="cuda", Z=3, H=2, M=512, N=384, K=256
 ):
     seed = 0
     torch.manual_seed(seed)
@@ -103,7 +103,7 @@ def test_matmul(
     b_tri = do_sparsify(b_tri) if is_dds else b_tri
     a_tri.retain_grad()
     b_tri.retain_grad()
-    op = triton.ops.blocksparse.matmul(
+    op = kernels.blocksparse.matmul(
         layout, BLOCK, MODE, trans_a=TRANS_A, trans_b=TRANS_B, device=device
     )
     c_tri = op(a_tri, b_tri)
@@ -132,7 +132,9 @@ configs = [
 
 @pytest.mark.parametrize("is_dense", [False, True])
 @pytest.mark.parametrize("BLOCK, WIDTH", configs)
-def test_softmax(BLOCK, WIDTH, is_dense, device, Z=2, H=2, is_causal=True, scale=0.4):
+def test_softmax(
+    BLOCK, WIDTH, is_dense, device="cuda", Z=2, H=2, is_causal=True, scale=0.4
+):
     # set seed
     torch.random.manual_seed(0)
     Z, H, M, N = 2, 3, WIDTH, WIDTH
@@ -164,7 +166,7 @@ def test_softmax(BLOCK, WIDTH, is_dense, device, Z=2, H=2, is_causal=True, scale
     a_tri = sparsify_tensor(a_tri, layout, BLOCK)
     a_tri.retain_grad()
     dout_tri = sparsify_tensor(dout_tri, layout, BLOCK)
-    op = triton.ops.blocksparse.softmax(layout, BLOCK, device=device, is_dense=is_dense)
+    op = kernels.blocksparse.softmax(layout, BLOCK, device=device, is_dense=is_dense)
     out_tri = op(a_tri, scale=scale, is_causal=is_causal)
     out_tri.backward(dout_tri)
     da_tri = a_tri.grad
@@ -178,7 +180,7 @@ def test_softmax(BLOCK, WIDTH, is_dense, device, Z=2, H=2, is_causal=True, scale
 def test_attention_fwd_bwd(
     block,
     dtype,
-    device,
+    device="cuda",
     input_scale=1.0,
     scale=1 / 8.0,
     n_ctx=256,
@@ -251,13 +253,13 @@ def triton_attention(
     value: torch.Tensor,
     scale: float,
 ):
-    sparse_dot_sdd_nt = triton.ops.blocksparse.matmul(
+    sparse_dot_sdd_nt = kernels.blocksparse.matmul(
         layout, block, "sdd", trans_a=False, trans_b=True, device=value.device
     )
-    sparse_dot_dsd_nn = triton.ops.blocksparse.matmul(
+    sparse_dot_dsd_nn = kernels.blocksparse.matmul(
         layout, block, "dsd", trans_a=False, trans_b=False, device=value.device
     )
-    sparse_softmax = triton.ops.blocksparse.softmax(layout, block, device=value.device)
+    sparse_softmax = kernels.blocksparse.softmax(layout, block, device=value.device)
 
     w = sparse_dot_sdd_nt(query, key)
     w = sparse_softmax(w, scale=scale, is_causal=True)

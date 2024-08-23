@@ -1,8 +1,7 @@
 import pytest
 import torch
 
-import triton
-import triton.ops
+import kernels
 
 
 @pytest.mark.parametrize(
@@ -15,7 +14,7 @@ import triton.ops
         for mode in ["forward", "backward"]
     ],
 )
-def test_op(M, N, dtype, mode, device):
+def test_op(M, N, dtype, mode, device="cuda"):
     capability = torch.cuda.get_device_capability()
     if capability[0] < 8 and dtype == "bfloat16":
         pytest.skip("Only test bfloat16 on devices with sm >= 80")
@@ -28,7 +27,7 @@ def test_op(M, N, dtype, mode, device):
     x = torch.randn(M, N, dtype=dtype, device=device, requires_grad=True)
     idx = 4 + torch.ones(M, dtype=torch.int64, device=device)
     # forward pass
-    tt_y = triton.ops.cross_entropy(x, idx)
+    tt_y = kernels.cross_entropy(x, idx)
     th_y = torch.nn.CrossEntropyLoss(reduction="none")(x, idx)
     if mode == "forward":
         torch.testing.assert_close(th_y, tt_y)

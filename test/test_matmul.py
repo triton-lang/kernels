@@ -5,7 +5,7 @@ import torch
 
 import triton
 import triton.language as tl
-import triton.ops
+import kernels
 
 
 def is_hip():
@@ -1006,7 +1006,7 @@ def test_op(
             kwargs=kwargs, num_warps=NWARP, num_stages=NSTAGE, pre_hook=pre_hook
         )
     ]
-    kernel = triton.ops._matmul.kernel
+    kernel = kernels._matmul.kernel
     kernel.configs = configs
     # kernel.run = kernel.run.run.run
 
@@ -1071,7 +1071,7 @@ def test_op(
     # run test
     th_a = upcast_if_fp8(a, ADTYPE)
     th_b = upcast_if_fp8(b, BDTYPE)
-    ab_dtype = triton.ops.get_higher_dtype(th_a.dtype, th_b.dtype)
+    ab_dtype = kernels.get_higher_dtype(th_a.dtype, th_b.dtype)
     acc_dtype = getattr(torch, ACC_DTYPE) if ACC_DTYPE else ab_dtype
     output_dtype = getattr(torch, OUTPUT_DTYPE) if OUTPUT_DTYPE else ab_dtype
     th_c = torch.matmul(th_a.to(output_dtype), th_b.to(output_dtype))
@@ -1080,7 +1080,7 @@ def test_op(
             a = triton.reinterpret(a, getattr(tl, ADTYPE))
         if is_fp8(BDTYPE):
             b = triton.reinterpret(b, getattr(tl, BDTYPE))
-        tt_c = triton.ops.matmul(
+        tt_c = kernels.matmul(
             a,
             b,
             acc_dtype if ACC_DTYPE else None,
