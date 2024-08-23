@@ -6,3 +6,4 @@ tiktoken
 fairscale
 triton
 pandas
+pytest
