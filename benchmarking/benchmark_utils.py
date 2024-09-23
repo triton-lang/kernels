@@ -1,6 +1,6 @@
 from typing import Any, Dict
 import pandas as pd
-
+import os
 
 def compare_benchmarks(benchmarks: Dict[str, Dict[str, Any]]) -> Dict[str, Any]:
     series_dict = {k: pd.Series(v.values()) for k, v in benchmarks.items()}
@@ -24,5 +24,8 @@ def compare_benchmarks(benchmarks: Dict[str, Dict[str, Any]]) -> Dict[str, Any]:
     columns = [c for c in df.columns if not "kernel" in c]
     columns = ["kernel", "kernel_path"] + columns
     df = df[columns]
+    folder_name = '.results'
+    csv_file_path = os.path.jsoin(folder_name, 'output.csv')
+    df.save_csv(csv_file_path, index=False)
     df.set_index("kernel", inplace=True)
     return df
