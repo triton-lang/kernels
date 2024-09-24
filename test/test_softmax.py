@@ -1,7 +1,7 @@
 import torch
 import torch.nn.functional as F
 import pytest
-from fused_softmax import triton_softmax  # Import your Triton softmax function
+from kernels.fused_softmax import triton_softmax
 
 @pytest.mark.parametrize("input_size", [(1024, 1024), (512, 512), (2048, 512)])
 def test_softmax_equivalence(input_size):
