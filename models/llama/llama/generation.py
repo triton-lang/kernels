@@ -193,17 +193,21 @@ class Llama:
         for cur_pos in range(min_prompt_len, total_len):
             logits = self.model.forward(tokens[:, prev_pos:cur_pos], prev_pos)
             if temperature > 0:
-                if self.use_triton: 
-                    probs = triton_softmax(logits[:,-1])
-                else: 
-                    probs = self.Math.softmax(logits[:, -1] / temperature, dim=-1)
+                # if self.use_triton: 
+                #     probs = triton_softmax(logits[:,-1])
+                # else: 
+                #     probs = self.Math.softmax(logits[:, -1] / temperature, dim=-1)
+                MathOps.softmax(logits[:, -1] / temperature, dim=-1)
+
+                
                 
                 next_token = sample_top_p(probs, top_p)
             else:
-                if self.use_triton: 
-                    next_token = self.triton.language.argmax(logits[:, -1], axis=-1)
-                else:
-                    next_token = self.Math.argmax(logits[:, -1], dim=-1)
+                # if self.use_triton: 
+                #     next_token = self.triton.language.argmax(logits[:, -1], axis=-1)
+                # else:
+                #     next_token = self.Math.argmax(logits[:, -1], dim=-1)
+                MathOps.argmax(logits[:,-1], dim = -1)
 
             next_token = next_token.reshape(-1)
             # only replace token if prompt has already been generated
