@@ -195,7 +195,7 @@ class Llama:
                 probs = self.Math.softmax(logits[:, -1] / temperature, dim=-1)
                 next_token = sample_top_p(probs, top_p)
             else:
-                self.Math.argmax(logits[:,-1], dim=-1)
+                next_token = self.Math.argmax(logits[:,-1], dim=-1)
 
             next_token = next_token.reshape(-1)
             # only replace token if prompt has already been generated
