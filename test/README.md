@@ -1,3 +1,4 @@
 # Unit Tests for Kernels
 
-Invoke by calling ```pytest test/```
+Invoke all tests by calling ```pytest test/```.
+To run a specific test, call ```pytest test/test_softmax.py```.

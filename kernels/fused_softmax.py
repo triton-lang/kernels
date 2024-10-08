@@ -7,13 +7,9 @@ from triton.runtime import driver
 def is_hip():
     return triton.runtime.driver.active.get_current_target().backend == "hip"
 
-
 def is_cdna():
     return is_hip() and triton.runtime.driver.active.get_current_target().arch in ('gfx940', 'gfx941', 'gfx942',
                                                                                    'gfx90a', 'gfx908')
-
-
-
 
 @triton.jit
 def softmax_kernel(output_ptr, input_ptr, input_row_stride, output_row_stride, n_rows, n_cols, BLOCK_SIZE: tl.constexpr,
@@ -42,7 +38,7 @@ def softmax_kernel(output_ptr, input_ptr, input_row_stride, output_row_stride, n
         output_ptrs = output_row_start_ptr + col_offsets
         tl.store(output_ptrs, softmax_output, mask=mask)
 
-def softmax(x):
+def triton_softmax(x):
     device = torch.cuda.current_device()
     properties = driver.active.utils.get_device_properties(device)
     NUM_SM = properties["multiprocessor_count"]
@@ -116,13 +112,13 @@ def softmax(x):
 
 
 
-class TritonSoftmax(torch.autograd.Function):
+class _softmax(torch.autograd.Function):
     @staticmethod
     def forward(ctx, x):
-        return softmax(x)
+        return triton_softmax(x)
 
     # @staticmethod
     # def backward(ctx, grad_output):
     #     return grad_output, grad_output
 
-triton_softmax = TritonSoftmax.apply
+softmax = _softmax.apply

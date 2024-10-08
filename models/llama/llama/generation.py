@@ -19,7 +19,6 @@ from .model import ModelArgs, Transformer
 from .math_ops import MathOps
 from .tokenizer import ChatFormat, Dialog, Message, Tokenizer
 from benchmarking import Profiler
-from kernels.fused_softmax import triton_softmax
 
 class CompletionPrediction(TypedDict, total=False):
     generation: str
@@ -193,21 +192,10 @@ class Llama:
         for cur_pos in range(min_prompt_len, total_len):
             logits = self.model.forward(tokens[:, prev_pos:cur_pos], prev_pos)
             if temperature > 0:
-                # if self.use_triton: 
-                #     probs = triton_softmax(logits[:,-1])
-                # else: 
-                #     probs = self.Math.softmax(logits[:, -1] / temperature, dim=-1)
-                MathOps.softmax(logits[:, -1] / temperature, dim=-1)
-
-                
-                
+                probs = self.Math.softmax(logits[:, -1] / temperature, dim=-1)
                 next_token = sample_top_p(probs, top_p)
             else:
-                # if self.use_triton: 
-                #     next_token = self.triton.language.argmax(logits[:, -1], axis=-1)
-                # else:
-                #     next_token = self.Math.argmax(logits[:, -1], dim=-1)
-                MathOps.argmax(logits[:,-1], dim = -1)
+                self.Math.argmax(logits[:,-1], dim=-1)
 
             next_token = next_token.reshape(-1)
             # only replace token if prompt has already been generated
