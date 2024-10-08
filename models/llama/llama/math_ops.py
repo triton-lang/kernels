@@ -79,7 +79,7 @@ class MathOps:
     @Profiler.profiling_decorator("argmax")
     def argmax(self, x, dim):
         if self.use_triton:
-            return self.triton.language.argmax(x, axis=dim)
+            return triton.language.argmax(x, axis=dim)
         else:
             return torch.argmax(x, dim=dim)
 
