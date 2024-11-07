@@ -8,6 +8,7 @@ from kernels.matmul import matmul
 from kernels.cross_entropy import cross_entropy
 from kernels.matmul import matmul
 from kernels.flash_attention import attention
+from kernels.fused_softmax import softmax
 from benchmarking import Profiler
 import time
 
@@ -70,17 +71,17 @@ class MathOps:
 
     @Profiler.profiling_decorator("softmax")
     def softmax(self, x, dim):
-        if self.use_triton:
-            return F.softmax(x, dim=-1)
+        if self.use_triton and x.ndim == 2:
+            return softmax(x)
         else:
-            return F.softmax(x, dim=-1)
+            return F.softmax(x, dim)
 
     @Profiler.profiling_decorator("argmax")
     def argmax(self, x, dim):
         if self.use_triton:
-            return torch.argmax(x, dim=-1)
+            return triton.language.argmax(x, axis=dim)
         else:
-            return torch.argmax(x, dim=-1)
+            return torch.argmax(x, dim=dim)
 
     @Profiler.profiling_decorator("cross_entropy")
     def cross_entropy(self, input_val, target, reduction, ignore_index):
