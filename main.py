@@ -7,6 +7,7 @@ import torch
 from models.llama import llama_example_chat_completion, llama_example_text_completion
 from benchmarking import Profiler, compare_benchmarks
 import pprint
+import torch.distributed as dist
 
 
 def main(operation: str, profile=False, benchmark=False, **kwargs):
@@ -64,6 +65,9 @@ def main(operation: str, profile=False, benchmark=False, **kwargs):
         output = compare_benchmarks(benchmarks)
         print(output)
         print("\n==================================\n")
+
+    if dist.is_initialized():
+        dist.destroy_process_group()
 
 
 def runner(operation: str, kwargs):

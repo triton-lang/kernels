@@ -20,7 +20,6 @@ from .math_ops import MathOps
 from .tokenizer import ChatFormat, Dialog, Message, Tokenizer
 from benchmarking import Profiler
 
-
 class CompletionPrediction(TypedDict, total=False):
     generation: str
     tokens: List[str]  # not required
@@ -196,7 +195,7 @@ class Llama:
                 probs = self.Math.softmax(logits[:, -1] / temperature, dim=-1)
                 next_token = sample_top_p(probs, top_p)
             else:
-                next_token = self.Math.argmax(logits[:, -1], dim=-1)
+                next_token = self.Math.argmax(logits[:,-1], dim=-1)
 
             next_token = next_token.reshape(-1)
             # only replace token if prompt has already been generated
