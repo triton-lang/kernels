@@ -1,8 +1,14 @@
 from typing import Any, Dict
-import pandas as pd
 
 
 def compare_benchmarks(benchmarks: Dict[str, Dict[str, Any]]) -> Dict[str, Any]:
+    try:
+        import pandas as pd
+    except ModuleNotFoundError as exc:
+        if exc.name != "pandas":
+            raise
+        raise ModuleNotFoundError("pandas is required to compare benchmarks") from exc
+
     series_dict = {k: pd.Series(v.values()) for k, v in benchmarks.items()}
     series_dict["kernel_path"] = pd.Series(
         benchmarks[list(benchmarks.keys())[0]].keys()
