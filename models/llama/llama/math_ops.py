@@ -1,15 +1,15 @@
 import math
-import torch.nn.functional as F
-import torch
-import triton
-from typing import Tuple
-from torch import nn
-from kernels.matmul import matmul
-from kernels.cross_entropy import cross_entropy
-from kernels.matmul import matmul
-from kernels.flash_attention import attention
-from benchmarking import Profiler
 import time
+from typing import Tuple
+
+import torch
+import torch.nn.functional as F
+import triton
+from benchmarking import Profiler
+from kernels.cross_entropy import cross_entropy
+from kernels.flash_attention import flash
+from kernels.matmul import matmul
+from torch import nn
 
 
 def reshape_for_broadcast(freqs_cis: torch.Tensor, x: torch.Tensor):
@@ -61,6 +61,9 @@ class MathOps:
 
     @Profiler.profiling_decorator("attention")
     def attention(self, xq, keys, values, head_dim, mask):
+        if self.use_triton:
+            return flash(xq, keys, values)
+
         scores = self.matmul(xq, keys.transpose(2, 3)) / math.sqrt(head_dim)
         if mask is not None:
             scores = scores + mask  # (bs, n_local_heads, seqlen, cache_len + seqlen)
