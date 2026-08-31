@@ -77,5 +77,5 @@ class Profiler:
     @classmethod
     def get_profiling_data(cls):
         if cls._instance and cls._instance.profiler:
-            return self.profiler.key_averages()
+            return cls._instance.profiler.key_averages()
         return None

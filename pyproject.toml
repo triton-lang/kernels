@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools>=64", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "triton-kernels"
+version = "0.1.0"
+description = "High-performance Triton kernels for machine learning"
+readme = "README.md"
+requires-python = ">=3.8"
+dependencies = [
+    "torch",
+    "triton",
+    "numpy",
+    "pandas>=2.0.3",
+    "fire>=0.7.1",
+    "fairscale>=0.4.13",
+    "tiktoken>=0.7.0",
+]
+
+[project.optional-dependencies]
+test = ["pytest", "pytest-xdist"]
+dev = ["pytest", "pytest-xdist", "black", "ruff"]
+
+[tool.setuptools.packages.find]
+include = ["kernels*"]
+exclude = ["test*", "benchmarking*", "models*"]
+
+[tool.setuptools.package-dir]
+"" = "."
