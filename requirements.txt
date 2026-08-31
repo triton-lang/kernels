@@ -6,3 +6,5 @@ tiktoken
 fairscale
 triton
 pandas
+pytest
+pre-commit

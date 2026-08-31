@@ -2,8 +2,8 @@ import pytest
 import torch
 import os
 
+import kernels
 import triton
-import triton.ops
 
 
 @pytest.mark.interpreter
@@ -19,7 +19,7 @@ import triton.ops
 @pytest.mark.parametrize("dtype", [torch.float16, torch.bfloat16])
 @pytest.mark.parametrize("causal", [True, False])
 @pytest.mark.parametrize("seq_par", [True, False])
-def test_op(Z, H, N_CTX, D_HEAD, dtype, causal, seq_par, device):
+def test_op(Z, H, N_CTX, D_HEAD, dtype, causal, seq_par, device="cuda"):
     capability = torch.cuda.get_device_capability()
     if capability[0] < 8:
         pytest.skip("Flash attention only supported for compute capability >= 80")
@@ -56,7 +56,7 @@ def test_op(Z, H, N_CTX, D_HEAD, dtype, causal, seq_par, device):
     ref_dk, k.grad = k.grad.clone(), None
     ref_dq, q.grad = q.grad.clone(), None
     # # triton implementation
-    tri_out = triton.ops.attention(q, k, v, causal, sm_scale, seq_par)
+    tri_out = kernels.attention(q, k, v, causal, sm_scale, seq_par)
     tri_out.backward(dout)
     tri_dv, v.grad = v.grad.clone(), None
     tri_dk, k.grad = k.grad.clone(), None
@@ -151,7 +151,7 @@ def bench_flash_attention(
         (BATCH, H, N_CTX, D_HEAD), dtype=dtype, device="cuda", requires_grad=True
     )
     if provider == "triton":
-        fn = lambda: triton.ops.attention(q, k, v, casual, sm_scale, seq_par)
+        fn = lambda: kernels.attention(q, k, v, casual, sm_scale, seq_par)
         if mode == "bwd":
             o = fn()
             do = torch.randn_like(o)

@@ -5,7 +5,7 @@ import triton
 import triton.language as tl
 
 
-def test_normalization_with_remat(device):
+def test_normalization_with_remat(device="cuda"):
 
     @triton.jit
     def triton_(
@@ -80,7 +80,7 @@ def test_normalization_with_remat(device):
     )
 
 
-def test_avg_pool_bw(device):
+def test_avg_pool_bw(device="cuda"):
 
     @triton.jit
     def triton_(in_ptr0, out_ptr0, XBLOCK: tl.constexpr):
@@ -200,7 +200,7 @@ def test_avg_pool_bw(device):
 
 @pytest.mark.parametrize("RBLOCK", [1, 16, 32, 64, 128])
 @pytest.mark.parametrize("num_warps", [1, 4])
-def test_scan2d_broadcast(RBLOCK, num_warps, device):
+def test_scan2d_broadcast(RBLOCK, num_warps, device="cuda"):
 
     @triton.jit(debug=True)
     def fn(in_ptr, out_ptr, XBLOCK: tl.constexpr, RBLOCK: tl.constexpr):
@@ -220,7 +220,7 @@ def test_scan2d_broadcast(RBLOCK, num_warps, device):
     torch.testing.assert_close(output, ref)
 
 
-def test_scan2d_for(device):
+def test_scan2d_for(device="cuda"):
 
     @triton.jit
     def fn(out_ptr0, rnumel, RBLOCK: tl.constexpr):
